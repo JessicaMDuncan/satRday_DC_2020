@@ -1,0 +1,250 @@
+---
+title: "R: Where the H*ck to Start"
+subtitle: satRday DC
+author: Jessica Duncan
+date: March 28, 2020
+output: ioslides_presentation
+incremental: TRUE
+widescreen: TRUE
+---
+<style>
+.forceBreak { -webkit-column-break-after: always; break-after: column; }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+library(shiny)
+library(tidyverse)
+library(rgdal)
+library(rgeos)
+library(maptools)
+library(ggalt)
+library(ggthemes)
+library(ggrepel)
+library(RColorBrewer)
+library(ggiraph)
+library(viridis)
+library(plotly)
+```
+
+## About me {.build}
+
+> - Liberal Arts academic background
+> - Variety of industries before MSDS
+> - Now data analyst & graduate TA
+> - Also really like doggos
+
+```{r  out.width = "45%", fig.align = "center"}
+include_graphics("images/pups.jpg")
+```
+
+
+## {data-background=images/dog_bkgd.png data-background-size=cover}
+
+<div class="centered">
+<div class="black">
+
+"hi here’s a cute dog pic yay R thank you for coming to my talk byebye"
+
+</div>
+
+
+## How I Got Started in R {.build}
+
+<div class="red2">
+*SPOILER ALERT*: 0/10 do not recommend
+</div>
+
+ > - Enrolled in a data science masters degree with zero programming experience
+ > - Began curriculum with two intro-level python courses
+ > - Quickly realized I'm in over my head
+ > - Came thisclose to quitting  
+ > - Rallied and managed to complete my first quarter
+ > - Switched to R for the remainder of my grad program
+
+
+---
+
+one of my first R things:
+
+```{r  out.width = "75%", fig.align = "center"}
+include_graphics("images/first.png")
+```
+ 
+
+## How I Got Better in R {.build}
+ 
+ > - Did a bunch of grad school assignments
+ > - Googled a LOT of things and wore out cmd+c/cmd+v
+ > - Graduated with an MSDS feeling pretty good about my skills
+ > - Moved into my company's data science dept; felt less good about my skills
+ > - Worked daily in R for last year+ with support of veteran R users
+
+```{r  out.width = "40%", fig.align = "center"}
+include_graphics("images/featmeme.jpg")
+```
+
+
+---
+
+my latest cool R thing!
+
+```{r map set up, include=FALSE}
+mydata <- readOGR(dsn = "map/tl_2019_us_zcta510", layer = "tl_2019_us_zcta510")
+hou <- read_csv("map/houston_metro_zips.csv")
+income <- read_csv("map/ACS_17_5YR_S1903_with_ann.csv")
+income <- income %>%
+  select(GEO.id2, HC03_EST_VC02) %>%
+  filter(GEO.id2 %in% hou$zip) %>%
+  mutate(med_inc = as.integer(HC03_EST_VC02))
+income <- income %>%
+  mutate(inc_denom = max(income$med_inc[-which.max(income$med_inc)], na.rm=TRUE), #define 2nd highest income to ignore the "250k+" entry
+         med_inc_scale = (med_inc/inc_denom),
+         med_inc_scale = ifelse(med_inc_scale > 1, 1, med_inc_scale))
+mypoly <- subset(mydata, ZCTA5CE10 %in% hou$zip)
+mypoly$group <- substr(mypoly$ZCTA5CE10, 1,5)
+mypoly$ZCTA5CE10 <- droplevels(mypoly$ZCTA5CE10)
+mypoly$inc_value <- income$med_inc_scale
+mypoly.union <- unionSpatialPolygons(mypoly, mypoly$group)
+mymap <- fortify(mypoly.union)
+mypoly.df.inc <- as(mypoly, "data.frame") %>%
+  group_by(group) %>%
+  summarise(value = sum(inc_value))
+centers <- data.frame(gCentroid(spgeom = mypoly.union, byid = TRUE))
+centers$zip <- rownames(centers)
+cancel_sites <- data.frame(longitude = c(-95.809118, -95.455191,-95.495724,-95.562142,-95.753827,
+                                   -95.497836,-95.417231,-95.357321), 
+                     latitude = c(29.781718,30.209261,29.7315199,29.820928,29.783373,
+                                  29.990031,29.691317,29.756372),
+                     names = c("Springhill Suites by Marriott Katy", "Best Western - The Woodlands",
+                               "Global Health Alliance", "Houston Christian High School", "Comfort Inn & Suites - Katy West",
+                               "Holiday Inn Express - Champions", "SureStay Plus Hotel by Best Western",
+                               "Houston - Incarnate Word Academy"))
+class_sites <- data.frame(longitude = c(-95.604937,-95.098664,-95.585684,-95.341343,-95.683082),
+                          latitude = c(29.783429,29.581433,29.633265, 29.719389,29.567379),
+                          names = c("Holiday Inn Express-I-10 West Energy Corridor", "University of Houston - Clear Lake",
+                                    "Comfort Suites Stafford", "Hilton University of Houston", "Best Western- Sugar Land"))
+```
+
+```{r}
+income_map <- ggplot() +
+  geom_cartogram(data = mymap, aes(x = long, y = lat, map_id = id), map = mymap) +
+  geom_cartogram(data = mypoly.df.inc, aes(fill = value, map_id = group), map = mymap) +
+  scale_fill_viridis(mypoly$value, option="C") +
+  coord_map() +
+  theme_map() +
+  theme(legend.position = "none")
+income_map_final <- income_map + 
+  geom_point_interactive(data = cancel_sites, 
+                         aes(x = longitude, y = latitude, tooltip = names, data_id = names), 
+                         size = .5, shape = 21, fill = "red") +
+  geom_point_interactive(data = class_sites, 
+                         aes(x = longitude, y = latitude, tooltip = names, data_id = names), 
+                         size = .5, shape = 21, fill = "green") 
+income_map_final <- girafe(ggobj = income_map_final, , width_svg = 2, height_svg = 1)
+income_map_final
+```
+
+## My Best Advice? {.build}
+> - Dive in!
+
+```{r  out.width = "70%", fig.align = "center"}
+include_graphics("https://media.giphy.com/media/fQh5mFgiJhTvq/giphy-downsized-large.gif")
+```
+
+
+## First Things First 
+
+<div style="float: left; width: 35%;">
+
+> - <a href="https://www.r-project.org">R</a> (open source programming language)
+> - <a href="https://rstudio.com/products/rstudio/download/">RStudio</a> (IDE)
+> - Some data
+> - Learning goals
+
+ </div>
+ <div style="float: right; width: 65%;">
+
+ ![](rstudio.png){width=650px}
+    
+ </div>
+
+
+## A Warning... {.build}
+
+```{r  out.width = "50%", fig.align = "center"}
+include_graphics("images/iris.jpg")
+```
+
+## Terms You Should Know
+ - CRAN (Comprehensive R Archive Network)
+ - environment
+ - working directory
+ - project
+ - _install.packages(...)_
+ - _library(...)_
+ - _?..._
+ - _browseVignettes(...)_
+ - _#comment_
+
+## Useful Packages {.columns-2}
+>  - <a href="https://dplyr.tidyverse.org">dplyr</a>
+>  - <a href="https://tidyr.tidyverse.org">tidyr</a>
+>  - <a href="https://ggplot2.tidyverse.org">ggplot2</a>
+>  - <a href="https://lubridate.tidyverse.org">lubridate</a>
+>  - <a href="https://rmarkdown.rstudio.com/lesson-1.html">rmarkdown</a>
+>  - <a href="https://shiny.rstudio.com/tutorial/">shiny</a>
+ 
+<p class="forceBreak"></p>
+
+```{r  out.width = "78%"}
+include_graphics("images/gib10.gif")
+```
+
+## Resources 
+
+> - <a href="https://cran.r-project.org/doc/contrib/Baggott-refcard-v2.pdf">R Reference Card 2.0</a>
+> - <a href="https://r4ds.had.co.nz">R for Data Science</a>
+> - <a href="http://www.cookbook-r.com">R Graphics Cookbook</a>
+> - <a href="https://bookdown.org/yihui/rmarkdown/">R Markdown: The Definitive Guide</a>
+> - <a href="https://rstudio.com/wp-content/uploads/2016/05/base-r.pdf">Base R Cheat Sheet</a>
+> - Plus: cheatsheets linked in 'Packages' slide
+
+
+## Parting Thoughts {.columns-2}
+> - Set small, specific goals so you don't get overwhelmed
+> - Many, many ways to do the same thing
+> - Use #comments liberally
+> - Remember: even the experts Google for answers... all. the. time.
+ 
+<p class="forceBreak"></p>
+ 
+```{r  out.width = "78%", fig.align = "right"}
+include_graphics("https://media1.tenor.com/images/71cec41e363e0455f61c478f1bdea496/tenor.gif?itemid=9796017")
+```
+
+
+## {data-background=/Users/jessica/Documents/satRday/kittens.JPG data-background-size=cover}
+
+<div class="centered">
+<div class="white">
+
+ADOPTABLE KITTEHS!! <br> (you know need a quarantine friend or two)
+
+</div>
+
+## Connect With Me (or Kittens!)
+
+```{r  out.width = "50%", fig.align = "center"}
+include_graphics("images/social.png")
+```
+
+## Credits go to...
+
+- Close up dog face, slide 3: <https://www.pexels.com/photo/adorable-blur-breed-close-up-406014/>
+- 'I have no idea what I'm doing', slide 6: <https://barkpost.com/humor/funny-dog-memes/>
+- Corgi slide gif, slide 8: https://giphy.com/gifs/swim-doing-adorableflop-vfe2WbJh8CW8U/media>
+- 'Real world data', slide 10: VooDooEconometrician on Reddit <https://www.reddit.com/r/rstatsmemes/comments/cw4axj/trying_to_apply_a_fancy_new_r_library_to_my_real/>
+- 'I gib 10/10' gif, slide 12: Maya polar bear on YouTube <https://www.youtube.com/watch?v=GwkEt_IWZYQ>
+- 'Trust me' gif, slide 14: <https://tenor.com/view/dog-gif-9796017>
